@@ -1,0 +1,9 @@
+{
+  "users": {
+    "test": {
+      "name": "test",
+      "email": "test"
+    }
+  },
+  "ratings": []
+}
