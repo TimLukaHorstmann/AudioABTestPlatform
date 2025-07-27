@@ -54,100 +54,76 @@ const PasswordPage = () => {
   const [isDeveloper, setIsDeveloper] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const {toast} = useToast();
-  // Add this state for storing runtime config
+  // Minimal config state for admin info only
   const [config, setConfig] = useState<{
-    userPassword?: string;
-    adminPassword?: string;
     adminName?: string;
     adminEmail?: string;
   }>({});
-  const [configLoaded, setConfigLoaded] = useState(false);
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
-
-  // Add this effect to fetch config from API
-  useEffect(() => {
-    fetch('/api/config')
-      .then(res => res.json())
-      .then(data => {
-        console.log('Config loaded:', {
-          userPwd: data.userPassword ? 'Set' : 'Not set',
-          adminPwd: data.adminPassword ? 'Set' : 'Not set',
-          adminName: data.adminName ? 'Set' : 'Not set',
-          adminEmail: data.adminEmail ? 'Set' : 'Not set'
-        });
-        setConfig(data);
-        setConfigLoaded(true);
-      })
-      .catch(err => {
-        console.error('Failed to load config:', err);
-        // Use fallback values if config fetch fails
-        setConfig({
-          userPassword: process.env.USER_PASSWORD || 'demo',
-          adminPassword: process.env.ADMIN_PASSWORD || 'admin',
-          adminName: process.env.ADMIN_NAME || 'Admin',
-          adminEmail: process.env.ADMIN_EMAIL || 'admin@example.com',
-        });
-        setConfigLoaded(true);
-      });
-  }, []);
 
   useEffect(() => {
     // Focus on the password input when the component mounts
     passwordInputRef.current?.focus();
   }, []);
 
-  // Update handlePasswordSubmit to use the config
+  // Update handlePasswordSubmit to authenticate via API
   const handlePasswordSubmit = async () => {
     try {
-      // Use config for credentials instead of env variables
-      const userPassword = config.userPassword || process.env.USER_PASSWORD || 'demo';
-      const adminPassword = config.adminPassword || process.env.ADMIN_PASSWORD || 'admin';
-      const adminName = config.adminName || process.env.ADMIN_NAME || 'Admin';
-      const adminEmail = config.adminEmail || process.env.ADMIN_EMAIL || 'admin@example.com';
+      setLoginError(null);
       
-      // Alert for debugging
-      toast({
-        title: 'Debug info',
-        description: `Checking credentials: ${userPassword?.substring(0,2)}... / ${adminPassword?.substring(0,2)}...`,
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password,
+          name,
+          email,
+        }),
       });
-      
-      if (password === userPassword) {
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         setIsAuthenticated(true);
-        setIsDeveloper(false);
-        setLoginError(null);
-        const userInfo: UserInfo = {name, email};
-        await saveUserInfo(email, userInfo); // Use email as userId
-        toast({
-          title: 'Login successful!',
-          description: `Welcome, ${name}!`,
-        });
-      } else if (
-        password === adminPassword &&
-        name === adminName &&
-        email === adminEmail
-      ) {
-        setIsAuthenticated(true);
-        setIsDeveloper(true);
-        setLoginError(null);
-        toast({
-          title: 'Developer login successful!',
-          description: `Welcome, ${name}!`,
-        });
+        setIsDeveloper(data.isDeveloper);
+        
+        if (data.isDeveloper) {
+          // Store admin info if user is developer
+          setConfig({
+            adminName: data.adminName,
+            adminEmail: data.adminEmail,
+          });
+          toast({
+            title: 'Developer login successful!',
+            description: `Welcome, ${name}!`,
+          });
+        } else {
+          // Regular user login
+          const userInfo: UserInfo = {name, email};
+          await saveUserInfo(email, userInfo); // Use email as userId
+          toast({
+            title: 'Login successful!',
+            description: `Welcome, ${name}!`,
+          });
+        }
       } else {
         setIsAuthenticated(false);
         setIsDeveloper(false);
-        setLoginError('Incorrect credentials');
+        setLoginError(data.error || 'Invalid credentials');
         toast({
           title: 'Login failed',
-          description: 'Incorrect credentials.',
+          description: data.error || 'Incorrect credentials.',
         });
       }
     } catch (error: any) {
-      console.error('Email validation error:', error.message);
+      console.error('Authentication error:', error);
+      setLoginError('Authentication failed. Please try again.');
       toast({
         title: 'Login failed',
-        description: 'Invalid credentials.',
+        description: 'Authentication failed. Please try again.',
       });
     }
   };
@@ -206,6 +182,63 @@ const PasswordPage = () => {
             </div>
             {loginError && <p className="text-red-500">{loginError}</p>}
             <Button onClick={handlePasswordSubmit}>Submit</Button>
+            
+            {/* Demo Credentials */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Demo Credentials</h3>
+              
+              <div className="space-y-3">
+                <div className="text-xs">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-medium text-gray-600">Regular User:</span>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-6 text-xs px-2"
+                      onClick={() => {
+                        setName('Test User');
+                        setEmail('user@example.com');
+                        setPassword('demo');
+                      }}
+                    >
+                      Fill Form
+                    </Button>
+                  </div>
+                  <div className="font-mono text-gray-800 space-y-1">
+                    <div>Name: <span className="bg-white px-1 rounded">Any name</span></div>
+                    <div>Email: <span className="bg-white px-1 rounded">Any email</span></div>
+                    <div>Password: <span className="bg-white px-1 rounded">demo</span></div>
+                  </div>
+                </div>
+                
+                <div className="text-xs">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-medium text-gray-600">Admin User:</span>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-6 text-xs px-2"
+                      onClick={() => {
+                        setName('admin');
+                        setEmail('admin@tts.com');
+                        setPassword('admin');
+                      }}
+                    >
+                      Fill Form
+                    </Button>
+                  </div>
+                  <div className="font-mono text-gray-800 space-y-1">
+                    <div>Name: <span className="bg-white px-1 rounded">admin</span></div>
+                    <div>Email: <span className="bg-white px-1 rounded">admin@tts.com</span></div>
+                    <div>Password: <span className="bg-white px-1 rounded">admin</span></div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-3 text-xs text-gray-500">
+                💡 Admin users can export results and see additional analytics
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -230,8 +263,6 @@ const AudioRaterApp = ({
   userEmail: string;
   userName: string;
   config: {  // Define the config type
-    userPassword?: string;
-    adminPassword?: string;
     adminName?: string;
     adminEmail?: string;
   };

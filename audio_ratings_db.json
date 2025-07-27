@@ -3,6 +3,10 @@
     "test": {
       "name": "test",
       "email": "test"
+    },
+    "user@example.com": {
+      "name": "Test User",
+      "email": "user@example.com"
     }
   },
   "ratings": []
